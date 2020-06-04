@@ -38,9 +38,9 @@ import static android.app.Activity.RESULT_OK;
 @ReactModule(name = RNCWebViewModule.MODULE_NAME)
 public class RNCWebViewModule extends ReactContextBaseJavaModule implements ActivityEventListener {
   public static final String MODULE_NAME = "RNCWebView";
-  private static final int PICKER = 1;
-  private static final int PICKER_LEGACY = 3;
-  private static final int FILE_DOWNLOAD_PERMISSION_REQUEST = 1;
+  private static final int PICKER = 4746531;
+  private static final int PICKER_LEGACY = 4746532;
+  private static final int FILE_DOWNLOAD_PERMISSION_REQUEST = 47465311;
   final String DEFAULT_MIME_TYPES = "*/*";
   private ValueCallback<Uri> filePathCallbackLegacy;
   private ValueCallback<Uri[]> filePathCallback;
