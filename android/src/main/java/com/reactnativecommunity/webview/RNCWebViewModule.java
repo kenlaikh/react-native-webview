@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.Parcelable;
 import android.provider.MediaStore;
@@ -40,13 +41,15 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
   public static final String MODULE_NAME = "RNCWebView";
   private static final int PICKER = 471;
   private static final int PICKER_LEGACY = 472;
-  private static final int FILE_DOWNLOAD_PERMISSION_REQUEST = 4711;
+  private static final int CAMERA_PERMISSION_REQUEST = 4711;
+  private static final int FILE_DOWNLOAD_PERMISSION_REQUEST = 4713;
   final String DEFAULT_MIME_TYPES = "*/*";
   private ValueCallback<Uri> filePathCallbackLegacy;
   private ValueCallback<Uri[]> filePathCallback;
   private Uri outputFileUri;
   private DownloadManager.Request downloadRequest;
-  private PermissionListener webviewFileDownloaderPermissionListener = new PermissionListener() {
+  private Intent photoPickerIntent;
+  private PermissionListener webviewPermissionListener = new PermissionListener() {
     @Override
     public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
       switch (requestCode) {
@@ -58,6 +61,35 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
             }
           } else {
             Toast.makeText(getCurrentActivity().getApplicationContext(), "Cannot download files as permission was denied. Please provide permission to write to storage, in order to download files.", Toast.LENGTH_LONG).show();
+          }
+          return true;
+        }
+        case CAMERA_PERMISSION_REQUEST: {
+          if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (photoPickerIntent != null) {
+              launchPhotoPicker();
+              photoPickerIntent = null;
+            }
+          } else {
+            boolean canOpenFileChooser = false;
+            if (photoPickerIntent != null) {
+              Bundle bundle = photoPickerIntent.getExtras();
+              if (bundle != null) {
+                Intent fileChooserIntent = (Intent) bundle.get(Intent.EXTRA_INTENT);
+                if (fileChooserIntent != null) {
+                  canOpenFileChooser = true;
+                  photoPickerIntent = fileChooserIntent;
+                  launchPhotoPicker();
+                }
+              }
+            }
+
+            if (!canOpenFileChooser) {
+              if (filePathCallback != null) {
+                filePathCallback.onReceiveValue(null);
+              }
+              Toast.makeText(getCurrentActivity().getApplicationContext(), "Cannot open camera as permission was denied. Please provide permission to open camera", Toast.LENGTH_LONG).show();
+            }
           }
           return true;
         }
@@ -153,7 +185,7 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
     return null;
   }
 
-  public void startPhotoPickerIntent(ValueCallback<Uri> filePathCallback, String acceptType) {
+  public Intent getPhotoPickerIntent(ValueCallback<Uri> filePathCallback, String acceptType) {
     filePathCallbackLegacy = filePathCallback;
 
     Intent fileChooserIntent = getFileChooserIntent(acceptType);
@@ -168,15 +200,11 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
     }
     chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraIntents.toArray(new Parcelable[]{}));
 
-    if (chooserIntent.resolveActivity(getCurrentActivity().getPackageManager()) != null) {
-      getCurrentActivity().startActivityForResult(chooserIntent, PICKER_LEGACY);
-    } else {
-      Log.w("RNCWebViewModule", "there is no Activity to handle this Intent");
-    }
+    return chooserIntent;
   }
 
   @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-  public boolean startPhotoPickerIntent(final ValueCallback<Uri[]> callback, final Intent intent, final String[] acceptTypes, final boolean allowMultiple) {
+  public Intent getPhotoPickerIntent(final ValueCallback<Uri[]> callback, final Intent intent, final String[] acceptTypes, final boolean allowMultiple) {
     filePathCallback = callback;
 
     ArrayList<Parcelable> extraIntents = new ArrayList<>();
@@ -193,13 +221,23 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
     chooserIntent.putExtra(Intent.EXTRA_INTENT, fileSelectionIntent);
     chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraIntents.toArray(new Parcelable[]{}));
 
-    if (chooserIntent.resolveActivity(getCurrentActivity().getPackageManager()) != null) {
-      getCurrentActivity().startActivityForResult(chooserIntent, PICKER);
+    return chooserIntent;
+  }
+
+  public void setPhotoPickerIntent(Intent photoPickerIntent) {
+    this.photoPickerIntent = photoPickerIntent;
+  }
+
+  public void launchPhotoPicker() {
+    if (this.photoPickerIntent == null) {
+      return;
+    }
+
+    if (this.photoPickerIntent.resolveActivity(getCurrentActivity().getPackageManager()) != null) {
+      getCurrentActivity().startActivityForResult(this.photoPickerIntent, PICKER);
     } else {
       Log.w("RNCWebViewModule", "there is no Activity to handle this Intent");
     }
-
-    return true;
   }
 
   public void setDownloadRequest(DownloadManager.Request request) {
@@ -215,6 +253,24 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
     Toast.makeText(getCurrentActivity().getApplicationContext(), downloadMessage, Toast.LENGTH_LONG).show();
   }
 
+  public boolean grantCameraPermissions() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+      return true;
+    }
+
+    boolean result = true;
+    if (ContextCompat.checkSelfPermission(getCurrentActivity(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      result = false;
+    }
+
+    if (!result) {
+      PermissionAwareActivity activity = getPermissionAwareActivity();
+      activity.requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST, webviewPermissionListener);
+    }
+
+    return result;
+  }
+
   public boolean grantFileDownloaderPermissions() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
       return true;
@@ -227,7 +283,7 @@ public class RNCWebViewModule extends ReactContextBaseJavaModule implements Acti
 
     if (!result) {
       PermissionAwareActivity activity = getPermissionAwareActivity();
-      activity.requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, FILE_DOWNLOAD_PERMISSION_REQUEST, webviewFileDownloaderPermissionListener);
+      activity.requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, FILE_DOWNLOAD_PERMISSION_REQUEST, webviewPermissionListener);
     }
 
     return result;

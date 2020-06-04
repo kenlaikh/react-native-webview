@@ -125,7 +125,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
   protected static void dispatchEvent(WebView webView, Event event) {
     ReactContext reactContext = (ReactContext) webView.getContext();
     EventDispatcher eventDispatcher =
-      reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
+            reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
     eventDispatcher.dispatchEvent(event);
   }
 
@@ -198,10 +198,10 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         event.putBoolean("canGoForward", webView.canGoForward());
         event.putDouble("progress", (float) newProgress / 100);
         dispatchEvent(
-          webView,
-          new TopLoadingProgressEvent(
-            webView.getId(),
-            event));
+                webView,
+                new TopLoadingProgressEvent(
+                        webView.getId(),
+                        event));
       }
 
       @Override
@@ -210,24 +210,45 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       }
 
       protected void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType) {
-        getModule(reactContext).startPhotoPickerIntent(filePathCallback, acceptType);
+        RNCWebViewModule module = getModule(reactContext);
+        Intent photoPickerIntent = module.getPhotoPickerIntent(filePathCallback, acceptType);
+        module.setPhotoPickerIntent(photoPickerIntent);
+        if (module.grantCameraPermissions()) {
+          module.launchPhotoPicker();
+        }
       }
 
       protected void openFileChooser(ValueCallback<Uri> filePathCallback) {
-        getModule(reactContext).startPhotoPickerIntent(filePathCallback, "");
+        RNCWebViewModule module = getModule(reactContext);
+        Intent photoPickerIntent = module.getPhotoPickerIntent(filePathCallback, "");
+        module.setPhotoPickerIntent(photoPickerIntent);
+        if (module.grantCameraPermissions()) {
+          module.launchPhotoPicker();
+        }
       }
 
       protected void openFileChooser(ValueCallback<Uri> filePathCallback, String acceptType, String capture) {
-        getModule(reactContext).startPhotoPickerIntent(filePathCallback, acceptType);
+        RNCWebViewModule module = getModule(reactContext);
+        Intent photoPickerIntent = module.getPhotoPickerIntent(filePathCallback, acceptType);
+        module.setPhotoPickerIntent(photoPickerIntent);
+        if (module.grantCameraPermissions()) {
+          module.launchPhotoPicker();
+        }
       }
 
       @TargetApi(Build.VERSION_CODES.LOLLIPOP)
       @Override
       public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+        RNCWebViewModule module = getModule(reactContext);
         String[] acceptTypes = fileChooserParams.getAcceptTypes();
         boolean allowMultiple = fileChooserParams.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
         Intent intent = fileChooserParams.createIntent();
-        return getModule(reactContext).startPhotoPickerIntent(filePathCallback, intent, acceptTypes, allowMultiple);
+        Intent photoPickerIntent = module.getPhotoPickerIntent(filePathCallback, intent, acceptTypes, allowMultiple);
+        module.setPhotoPickerIntent(photoPickerIntent);
+        if (module.grantCameraPermissions()) {
+          module.launchPhotoPicker();
+        }
+        return true;
       }
     });
     reactContext.addLifecycleEventListener(webView);
@@ -247,8 +268,8 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
     // Fixes broken full-screen modals/galleries due to body height being 0.
     webView.setLayoutParams(
-      new LayoutParams(LayoutParams.MATCH_PARENT,
-        LayoutParams.MATCH_PARENT));
+            new LayoutParams(LayoutParams.MATCH_PARENT,
+                    LayoutParams.MATCH_PARENT));
 
     setGeolocationEnabled(webView, false);
     if (ReactBuildConfig.DEBUG && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -486,8 +507,8 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
   @ReactProp(name = "urlPrefixesForDefaultIntent")
   public void setUrlPrefixesForDefaultIntent(
-    WebView view,
-    @Nullable ReadableArray urlPrefixesForDefaultIntent) {
+          WebView view,
+          @Nullable ReadableArray urlPrefixesForDefaultIntent) {
     RNCWebViewClient client = ((RNCWebView) view).getRNCWebViewClient();
     if (client != null && urlPrefixesForDefaultIntent != null) {
       client.setUrlPrefixesForDefaultIntent(urlPrefixesForDefaultIntent);
@@ -496,15 +517,15 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
   @ReactProp(name = "allowFileAccess")
   public void setAllowFileAccess(
-    WebView view,
-    @Nullable Boolean allowFileAccess) {
+          WebView view,
+          @Nullable Boolean allowFileAccess) {
     view.getSettings().setAllowFileAccess(allowFileAccess != null && allowFileAccess);
   }
 
   @ReactProp(name = "geolocationEnabled")
   public void setGeolocationEnabled(
-    WebView view,
-    @Nullable Boolean isGeolocationEnabled) {
+          WebView view,
+          @Nullable Boolean isGeolocationEnabled) {
     view.getSettings().setGeolocationEnabled(isGeolocationEnabled != null && isGeolocationEnabled);
   }
 
@@ -529,13 +550,13 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
   public @Nullable
   Map<String, Integer> getCommandsMap() {
     return MapBuilder.of(
-      "goBack", COMMAND_GO_BACK,
-      "goForward", COMMAND_GO_FORWARD,
-      "reload", COMMAND_RELOAD,
-      "stopLoading", COMMAND_STOP_LOADING,
-      "postMessage", COMMAND_POST_MESSAGE,
-      "injectJavaScript", COMMAND_INJECT_JAVASCRIPT,
-      "loadUrl", COMMAND_LOAD_URL
+            "goBack", COMMAND_GO_BACK,
+            "goForward", COMMAND_GO_FORWARD,
+            "reload", COMMAND_RELOAD,
+            "stopLoading", COMMAND_STOP_LOADING,
+            "postMessage", COMMAND_POST_MESSAGE,
+            "injectJavaScript", COMMAND_INJECT_JAVASCRIPT,
+            "loadUrl", COMMAND_LOAD_URL
     );
   }
 
@@ -560,16 +581,16 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
           JSONObject eventInitDict = new JSONObject();
           eventInitDict.put("data", args.getString(0));
           reactWebView.evaluateJavascriptWithFallback("(function () {" +
-            "var event;" +
-            "var data = " + eventInitDict.toString() + ";" +
-            "try {" +
-            "event = new MessageEvent('message', data);" +
-            "} catch (e) {" +
-            "event = document.createEvent('MessageEvent');" +
-            "event.initMessageEvent('message', true, true, data.data, data.origin, data.lastEventId, data.source);" +
-            "}" +
-            "document.dispatchEvent(event);" +
-            "})();");
+                  "var event;" +
+                  "var data = " + eventInitDict.toString() + ";" +
+                  "try {" +
+                  "event = new MessageEvent('message', data);" +
+                  "} catch (e) {" +
+                  "event = document.createEvent('MessageEvent');" +
+                  "event.initMessageEvent('message', true, true, data.data, data.origin, data.lastEventId, data.source);" +
+                  "}" +
+                  "document.dispatchEvent(event);" +
+                  "})();");
         } catch (JSONException e) {
           throw new RuntimeException(e);
         }
@@ -623,19 +644,19 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       mLastLoadFailed = false;
 
       dispatchEvent(
-        webView,
-        new TopLoadingStartEvent(
-          webView.getId(),
-          createWebViewEvent(webView, url)));
+              webView,
+              new TopLoadingStartEvent(
+                      webView.getId(),
+                      createWebViewEvent(webView, url)));
     }
 
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
       dispatchEvent(
-        view,
-        new TopShouldStartLoadWithRequestEvent(
-          view.getId(),
-          createWebViewEvent(view, url)));
+              view,
+              new TopShouldStartLoadWithRequestEvent(
+                      view.getId(),
+                      createWebViewEvent(view, url)));
       return true;
     }
 
@@ -649,10 +670,10 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
     @Override
     public void onReceivedError(
-      WebView webView,
-      int errorCode,
-      String description,
-      String failingUrl) {
+            WebView webView,
+            int errorCode,
+            String description,
+            String failingUrl) {
       super.onReceivedError(webView, errorCode, description, failingUrl);
       mLastLoadFailed = true;
 
@@ -665,16 +686,16 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       eventData.putString("description", description);
 
       dispatchEvent(
-        webView,
-        new TopLoadingErrorEvent(webView.getId(), eventData));
+              webView,
+              new TopLoadingErrorEvent(webView.getId(), eventData));
     }
 
     protected void emitFinishEvent(WebView webView, String url) {
       dispatchEvent(
-        webView,
-        new TopLoadingFinishEvent(
-          webView.getId(),
-          createWebViewEvent(webView, url)));
+              webView,
+              new TopLoadingFinishEvent(
+                      webView.getId(),
+                      createWebViewEvent(webView, url)));
     }
 
     protected WritableMap createWebViewEvent(WebView webView, String url) {
@@ -742,12 +763,12 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
       if (sendContentSizeChangeEvents) {
         dispatchEvent(
-          this,
-          new ContentSizeChangeEvent(
-            this.getId(),
-            w,
-            h
-          )
+                this,
+                new ContentSizeChangeEvent(
+                        this.getId(),
+                        w,
+                        h
+                )
         );
       }
     }
@@ -802,8 +823,8 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
     public void callInjectedJavaScript() {
       if (getSettings().getJavaScriptEnabled() &&
-        injectedJS != null &&
-        !TextUtils.isEmpty(injectedJS)) {
+              injectedJS != null &&
+              !TextUtils.isEmpty(injectedJS)) {
         evaluateJavascriptWithFallback("(function() {\n" + injectedJS + ";\n})();");
       }
     }
